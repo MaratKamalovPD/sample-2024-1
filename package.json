@@ -5,11 +5,16 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "DEBUG=* node server"
+    "start": "node server"
   },
   "author": "",
   "license": "ISC",
-  "devDependencies": {
-    "debug": "^4.3.4"
+  "dependencies": {
+    "body-parser": "^1.20.0",
+    "cookie-parser": "^1.4.6",
+    "debug": "^4.3.4",
+    "express": "^4.18.1",
+    "morgan": "^1.10.0",
+    "uuid": "^9.0.0"
   }
 }
