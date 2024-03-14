@@ -1,8 +1,8 @@
 <div class="fieldset">
     {{#each items}}
     <label>
-        <input class="floor_btn" value="{{this.floor_uuid}}" type="radio" name="radio" checked/>
-        <span>{{this.floor_number}}</span>
+        <input class="floor_btn" value="{{this.floor_uuid}}" type="radio" name="radio"/>
+        <span id = "{{this.floor_uuid}}">{{this.floor_number}}</span>
     </label>
     {{/each}}
 </div>

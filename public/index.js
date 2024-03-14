@@ -99,6 +99,27 @@ async function handleSearch() {
   })
   const from = path.from;
   const to = path.to;
+
+  for (const floorNumber in floorsList.floors) {
+    if (floorsList.floors.hasOwnProperty(floorNumber)) {
+        const floorUUID = floorsList.floors[floorNumber].floor_uuid;
+        console.log(floorUUID);
+        const elementFloorNumber = document.getElementById(floorUUID);
+        if (floorUUID == from.floor_uuid){
+            elementFloorNumber.setAttribute('class', 'selected_floor_text');
+        } else if (floorUUID == to.floor_uuid) {
+            elementFloorNumber.setAttribute('class', 'selected_floor_text');
+        } else if (elementFloorNumber.classList.contains('selected_floor_text')) {
+            elementFloorNumber.classList.remove('selected_floor_text');
+        }
+    }
+  }
+
+//   const fromFloorNumber = document.getElementById(from.floor_uuid);
+//   const toFloorNumber = document.getElementById(to.floor_uuid);
+  
+//   fromFloorNumber.setAttribute('class', 'selected_floor_text');
+//   toFloorNumber.setAttribute('class', 'selected_floor_text');
   
   if (currentFloorUUID == from.floor_uuid) {
       const departure = document.getElementById(`r_id_${from.room_uuid}`);
@@ -113,7 +134,6 @@ async function handleSearch() {
   } else {
       state.setFloorState(to.floor_uuid, 'destination', to.room_uuid) 
   }
-  console.log(state)
 }
 
 function delayedRender(floor_uuid) {
@@ -294,7 +314,6 @@ function renderPolygons(polygonsData, floorNum, resetFloor) {
         const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
         g.setAttribute('id', 'floor')
         for (const d of polygonsData.coordinates) {
-            console.log(d)
             let polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
             
             const polygonCenter = findPolygonCenter(d.coordinates)
@@ -326,10 +345,11 @@ function renderPolygons(polygonsData, floorNum, resetFloor) {
                 let pngImage = document.createElementNS("http://www.w3.org/2000/svg","image");
                 const imageSize = 30;
                 pngImage.setAttribute("x", polygonCenter.x - imageSize / 2);
-                if (d.uuid !== 'bp_id_6291b50f-05b6-45f4-a41b-fbb4c9e5c961') {
+                if (d.uuid !== 'bp_id_6291b50f-05b6-45f4-a41b-fbb4c9e5c961' && d.uuid !=='bp_id_2747844c-a00c-403d-8b3d-26d2a80171e5') {
                     pngImage.setAttribute("y", polygonCenter.y - imageSize / 2);
-                }
-                else {
+                } else if (d.uuid ==='bp_id_2747844c-a00c-403d-8b3d-26d2a80171e5'){
+                    pngImage.setAttribute("y", 210);
+                } else {
                     pngImage.setAttribute("y", 215);
                 }
                 pngImage.setAttribute("width", imageSize);
@@ -380,12 +400,31 @@ function renderPolygons(polygonsData, floorNum, resetFloor) {
 
 async function bootstrap() {
     const floorBtn = document.querySelectorAll('.floor_btn');
-    console.log(floorBtn);
     floorBtn.forEach((b) => {
         b.addEventListener('click', handleClickFloorBtn);
     })
 }
 
+async function initialFloor() {
+    console.log('handle click');
+    const floorNum = '2d37f5c4-9d6c-4e28-ae66-40a1f3e3347f';
+    currentFloorUUID = floorNum
+    let data = state.getFloorState(floorNum, 'json_coordinates');
+
+    if (!data) {
+        data = await requestDataByFloor(floorNum);
+        state.setFloorState(floorNum, 'json_coordinates', data);
+        
+    }
+
+    renderPolygons(data, floorNum, false);
+}
+
 renderMenu();
 bootstrap();
+await initialFloor();
+
+const radioBtn = document.querySelector('.floor_btn');
+radioBtn.checked = true;
+
 

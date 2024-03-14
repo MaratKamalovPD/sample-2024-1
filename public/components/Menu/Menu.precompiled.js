@@ -10,7 +10,9 @@ templates['Menu.hbs'] = template({"1":function(container,depth0,helpers,partials
 
   return "    <label>\r\n        <input class=\"floor_btn\" value=\""
     + alias2(alias1((depth0 != null ? lookupProperty(depth0,"floor_uuid") : depth0), depth0))
-    + "\" type=\"radio\" name=\"radio\" checked/>\r\n        <span>"
+    + "\" type=\"radio\" name=\"radio\"/>\r\n        <span id = \""
+    + alias2(alias1((depth0 != null ? lookupProperty(depth0,"floor_uuid") : depth0), depth0))
+    + "\">"
     + alias2(alias1((depth0 != null ? lookupProperty(depth0,"floor_number") : depth0), depth0))
     + "</span>\r\n    </label>\r\n";
 },"compiler":[8,">= 4.3.0"],"main":function(container,depth0,helpers,partials,data) {
