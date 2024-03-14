@@ -1,3 +1,8 @@
-{{#each items}}
-    <a class="{{this.className}}" href="{{this.href}}" data-section="{{this.key}}">{{this.text}}</a>
-{{/each}}
+<div class="fieldset">
+    {{#each items}}
+    <label>
+        <input class="floor_btn" value="{{this.floor_uuid}}" type="radio" name="radio" checked/>
+        <span>{{this.floor_number}}</span>
+    </label>
+    {{/each}}
+</div>

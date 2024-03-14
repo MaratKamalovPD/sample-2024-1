@@ -1,40 +1,77 @@
 @import "components/Menu/Menu.css";
 
-body {
-  font-family: Helvetica, Arial, sans-serif;
-}
-
-#root {
+.scheme_container{
   display: grid;
-
-  grid-template-areas:
-    "header header"
-    "menu   content" ;
-
-  grid-template-rows: 100px 1fr;
-  grid-template-columns: min-content 1fr;
+  justify-content: center;
+  align-items: center;
 }
 
-aside {
-  grid-area: menu;
-  font-size: 40px;
-  padding-left: 20px;
+.scheme {
+  padding-top: 20px;
+  height: 360px;
+  width: 900px;
+  position: relative;
 }
 
-main {
-  grid-area: content;
-  padding: 0 40px 40px;
+.scheme svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 360px;
+  width: 900px;
 }
 
-a {
-  display: block;
-  color: #333333;
+.isHall {
+	fill: #e2eafc !important;
+	stroke: #c1d3fe;
+}
+
+.isAud {
+	fill: #ADD8E6 !important;
+	stroke: #4682B4;
+	cursor: pointer;
+}
+
+.isElevatorOrStairs {
+  fill: #4CC9F0 !important;
+	stroke: #4682B4;
+}
+
+.isSelectedAud {
+  fill: #DAFF7D !important;
+  stroke: #4682B4;
+}
+
+.isSelectedHall {
+  fill: #B2EF9B !important;
+  stroke: #86ff5a !important;
+}
+
+.floor_button_panels { 
+  text-align: center;
+}
+
+.navigation_panel_wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.navigation_panel_wrapper__selectors {
+  display: flex;
+  margin-top: 20px;
+  column-gap: 15px;
+}
+
+.navigation_panel_wrapper button, .floor_button_panels button {
+  margin-top: 20px;
+  padding: 15px;
+  border: none;
+  border-radius: 6px;
   text-decoration: none;
-}
-
-input {
-  display: block;
-  height: 60px;
-  font-size: 40px;
-  margin-bottom: 15px;
+  color: white;
+  background: #0B63F6;
+  cursor: pointer;
 }

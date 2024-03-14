@@ -1,198 +1,391 @@
 import {Menu, MENU_RENDER_TYPES} from "./components/Menu/Menu.js";
-import {safe} from "./utils/safe.js";
 
-console.log('lolkek');
 const rootElement = document.getElementById('root');
-const menuElement = document.createElement('aside');
-const pageElement = document.createElement('main');
 
-rootElement.appendChild(menuElement);
-rootElement.appendChild(pageElement);
+const link = 'http://127.0.0.1:5000';
+const buildingId = '8250b9ba-bc0d-4d2f-abf7-d91265e89050'
 
+async function getFloorNumbersAndUUIDs() {
+  let response = await fetch(`${link}/floors/${buildingId}`);
+  let json = await response.json();
+  const transformed = json.reduce((acc, item) => {
+    acc.floors[item.floor_number] = {
+        floor_uuid: item.uuid,
+        floor_number: item.floor_number.toString(),
+    };
+    return acc;
+}, { floors: {} });
+return transformed
+}
 
-const config = {
-  menu: {
-    feed: {
-      href: '/feed',
-      text: 'Лента',
-      render: renderFeed,
-    },
-    login: {
-      href: '/login',
-      text: 'Авторизоваться',
-      render: renderLogin,
-    },
-    signup: {
-      href: '/signup',
-      text: 'Регистрация',
-      render: renderSignup
-    },
-    profile: {
-      href: '/profile',
-      text: safe('Профиль'),
-      // Вектор атаки XSS. Работает, если делать рендер через строку. Для ознакомления!
-      // text: safe('<iframe onload="alert(1234)"></iframe>'),
-      render: renderProfile,
-    }
-  }
-};
+const floorsList = await getFloorNumbersAndUUIDs();
 
-const menu = new Menu(menuElement, config);
+const menu = new Menu(rootElement, floorsList);
 
 function renderMenu() {
     menu.render(MENU_RENDER_TYPES.TEMPLATE);
-    menuElement.addEventListener('click', (e) => {
-        const {target} = e;
-
-        if (target.tagName.toLowerCase() === 'a'|| target instanceof HTMLAnchorElement) {
-            e.preventDefault();
-
-            goToPage(target);
-        }
-    });
 }
 
-function createInput(type, text, name) {
-  const input = document.createElement('input');
-  input.type = type;
-  input.name = name;
-  input.placeholder = text;
+class FloorState {
+    constructor() {
+        this.globalState = {}
+    }
 
-  return input;
-}
+    setFloorState(floor, key, value) {
+        this.globalState[floor] = this.globalState[floor] || {};
+        this.globalState[floor][key] = value;
+    }
 
-function renderLogin() {
-  const form = document.createElement('form');
+    pushDelayedRender(floor, value) {
+        this.globalState[floor] = this.globalState[floor] || {};
+        this.globalState[floor]['delayed_display'] = this.globalState[floor]['delayed_display'] || [];
+        this.globalState[floor]['delayed_display'].push(value);
+    }
 
-  const emailInput = createInput('email', 'Емайл', 'email');
-  const passwordInput = createInput('password', 'Пароль', 'password');
+   
+    getFloorState(floor, key) {
+        return this.globalState[floor] ? this.globalState[floor][key] : undefined;
+    }
 
-  const submitBtn = document.createElement('input');
-  submitBtn.type = 'submit';
-  submitBtn.value = 'Войти!';
-
-  form.appendChild(emailInput);
-  form.appendChild(passwordInput);
-  form.appendChild(submitBtn);
-
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
-
-    Ajax.post({
-        url: '/login',
-        body: {password, email},
-        callback: (status) => {
-            if(status === 200) {
-                goToPage(menu.state.menuElements.profile);
-                return;
+    resetFloorState(key) {
+        for (let floor in this.globalState) {
+            if (this.globalState[floor].hasOwnProperty(key)) {
+                delete this.globalState[floor][key];
             }
-
-            alert('НЕВЕРНЫЙ ЕМЕЙЛ ИЛИ ПАРОЛЬ');
         }
-    });
+    }
+
+    resetFloorStateForFloor(floor, key) {
+       
+        delete this.globalState[floor][key];
+       
+    }
+}
+
+
+const state = new FloorState();
+let currentFloorUUID = -1;
+let isSelectFilled = false;
+const SVG = document.getElementById('svg');
+const selectFrom = document.getElementById('select-from');
+const selectTo = document.getElementById('select-to');
+
+async function handleSearch() {
+  const data = state.getFloorState(currentFloorUUID, 'json_coordinates');
+  renderPolygons(data, currentFloorUUID, true);
+  state.resetFloorState('delayed_display');   
+  for (const floorNumber in floorsList.floors) {
+    if (floorsList.floors.hasOwnProperty(floorNumber)) {
+        const floorUUID = floorsList.floors[floorNumber].floor_uuid;
+        if (floorUUID != currentFloorUUID){
+          state.setFloorState(floorUUID, 'need_clear', true)
+          
+        } 
+    }
+  }
+
+  const pathFrom = selectFrom.value;
+  const pathTo = selectTo.value;
+
+  const path = await getPath(pathFrom, pathTo);
+  path.path.forEach((item) => {
+    if (currentFloorUUID == item.floor_uuid) {
+        const el = document.getElementById(`bp_id_${item.basenode_uuid}`);
+        el.setAttribute('class', 'isSelectedHall');
+    } else {
+    state.pushDelayedRender(item.floor_uuid, item.basenode_uuid)
+    }
+  
   })
+  const from = path.from;
+  const to = path.to;
+  
+  if (currentFloorUUID == from.floor_uuid) {
+      const departure = document.getElementById(`r_id_${from.room_uuid}`);
+      departure.setAttribute('class', 'isSelectedAud');
+  } else {
+    state.setFloorState(from.floor_uuid, 'departure', from.room_uuid) 
+  }
 
-  return form;
+  if (currentFloorUUID == to.floor_uuid) {
+      const destination = document.getElementById(`r_id_${to.room_uuid}`);
+      destination.setAttribute('class', 'isSelectedAud');
+  } else {
+      state.setFloorState(to.floor_uuid, 'destination', to.room_uuid) 
+  }
+  console.log(state)
 }
 
-function renderSignup() {
-  const form = document.createElement('form');
+function delayedRender(floor_uuid) {
+    const roomArray = state.getFloorState(floor_uuid, 'delayed_display')
+    if (typeof roomArray !== "undefined") {
+        roomArray.forEach((basenode_uuid) => {
+            const el = document.getElementById(`bp_id_${basenode_uuid}`);
+            el.setAttribute('class', 'isSelectedHall');
+        })
+        state.resetFloorStateForFloor(floor_uuid, 'delayed_display', )
+    } 
+    
+    const departureState = state.getFloorState(floor_uuid, 'departure')
+    if (typeof departureState !== "undefined") {
+        const departure = document.getElementById(`r_id_${departureState}`);
+        departure.setAttribute('class', 'isSelectedAud');
+        state.resetFloorStateForFloor(floor_uuid, 'departure', )
+    }
 
-  const emailInput = createInput('email', 'Емайл', 'email');
-  const passwordInput = createInput('password', 'Пароль', 'password');
-  const ageInput = createInput('number', 'Возраст', 'age');
-
-  const submitBtn = document.createElement('input');
-  submitBtn.type = 'submit';
-  submitBtn.value = 'Зарегистрироваться!';
-
-  form.appendChild(emailInput);
-  form.appendChild(passwordInput);
-  form.appendChild(ageInput);
-  form.appendChild(submitBtn);
-
-  return form;
+    const destinationState = state.getFloorState(floor_uuid, 'destination')
+    if (typeof destinationState !== "undefined") {
+        const destination = document.getElementById(`r_id_${destinationState}`);
+        destination.setAttribute('class', 'isSelectedAud');
+        state.resetFloorStateForFloor(floor_uuid, 'destination', )
+    }
+  
 }
 
-function renderFeed() {
-  const feedElement = document.createElement('div');
+const searchButton = document.getElementById('search_path');
+searchButton.addEventListener('click', handleSearch)
 
-  Ajax.get({
-      url: '/feed',
-      callback: (status, responseString) => {
-          let isAuthorized = status === 200;
-
-          if (!isAuthorized) {
-              alert('Нет авторизации!');
-              goToPage(menu.state.menuElements.login);
-              return;
-          }
-
-          const images = JSON.parse(responseString);
-
-          if (images && Array.isArray(images)) {
-              const div = document.createElement('div');
-              feedElement.appendChild(div);
-
-              images.forEach(({src, likes}) => {
-                  div.innerHTML += `<img src="${src}" width="500" /><div>${likes} лайков</div>`;
-              });
-          }
+async function getPath(from, to) {
+    let response = await fetch(`${link}/get_path?from=${from}&to=${to}`);
+    if (response.ok) { 
+        let json = await response.json();
+        return json;
+      } else {
+        alert("Ошибка HTTP: " + response.status);
       }
-  });
-
-  return feedElement;
 }
 
-function goToPage(menuLinkElement) {
-  pageElement.innerHTML = '';
+function removeOptions(selectElement) {
+    var i, L = selectElement.options.length - 1;
+    for(i = L; i >= 0; i--) {
+       selectElement.remove(i);
+    }
+ }
 
-  menu.state.activeMenuLink?.classList.remove('active');
-  menuLinkElement.classList.add('active');
-  menu.state.activeMenuLink = menuLinkElement;
 
-  const element = config.menu[menuLinkElement.dataset.section].render();
+async function requestDataByFloor(floorId) {
+    console.log(`request data for ${floorId}`);
+    let response = await fetch(`${link}/floors/get_all?floor_uuid=${floorId}`);
+    let responseRooms = await fetch(`${link}/get_all_rooms_in_the_building?uuid=${buildingId}`);
+    
+    if (response.ok) { 
+        let json = await response.json();
+        let jsonRooms = await responseRooms.json()
 
-  pageElement.appendChild(element);
+        let basenodesJson = json.basenode;
+        let roomsJsonSelect = jsonRooms.rooms;
+        let roomsJson = json.rooms;
+
+        const basenodesPolygonCoordinates = processPolygonCoordinates(basenodesJson, 'bp_id_');
+        const roomPolygonCoordinates = processPolygonCoordinates(roomsJson, 'r_id_');
+
+        return {
+            "coordinates" : [...basenodesPolygonCoordinates, ...roomPolygonCoordinates],
+            "select" : roomsJsonSelect
+        };
+    } else {
+        alert("Ошибка HTTP: " + response.status);
+    } 
 }
 
-function renderProfile() {
-  const profileElement = document.createElement('div');
+const processPolygonCoordinates = (data, idPrefix) => 
+    Object.values(data).map(p => {
+        const coord = Object.keys(p.coordinates).map(key => [p.coordinates[key].x, p.coordinates[key].y]);
+        if (idPrefix == 'r_id_') {
+          return { uuid: `${idPrefix}${p.uuid}`, coordinates: coord, displayed_name: p.displayed_name };
+        }
+        return { uuid: `${idPrefix}${p.uuid}`, coordinates: coord, basenode_type: p.basenode_type};
+    });
 
-  Ajax.get({
-      url: '/me',
-      callback: (status, responseString) => {
-          const isAuthorized = status === 200;
+async function handleClickFloorBtn(e) {
+    console.log('handle click');
+    const floorNum = e.target.value;
+    currentFloorUUID = floorNum
+    let data = state.getFloorState(floorNum, 'json_coordinates');
 
-          if (!isAuthorized) {
-              alert('АХТУНГ! нет авторизации');
-              goToPage(menu.state.menuElements.login);
-              return;
-          }
+    if (!data) {
+        data = await requestDataByFloor(floorNum);
+        state.setFloorState(floorNum, 'json_coordinates', data);
+        
+    }
 
-          const {email, age, images} = JSON.parse(responseString);
-
-          const span = document.createElement('span');
-          span.textContent = `${email} ${age} лет`;
-          profileElement.appendChild(span);
-
-          if (images && Array.isArray(images)) {
-              const div = document.createElement('div');
-              profileElement.appendChild(div);
-
-              images.forEach(({src, likes}) => {
-                  div.innerHTML += `<img src="${src}" width="500"/><div>${likes} лайков</div>`
-              });
-          }
-      }
-  });
-
-  return profileElement;
+    const needClear = state.getFloorState(floorNum, 'need_clear')
+    if (typeof needClear !== "undefined")
+    {
+      renderPolygons(data, floorNum, needClear);
+      state.setFloorState(floorNum, 'need_clear', false)
+    } else {
+      renderPolygons(data, floorNum, needClear);
+    }
+    
 }
 
+function createTextElement(x, y, textAnchor, fill, fontSize, textContent) {
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  let textElement = document.createElementNS(SVG_NS, "text");
+  textElement.setAttributeNS(null, "x", x);
+  textElement.setAttributeNS(null, "y", y);
+  textElement.setAttributeNS(null, "text-anchor", textAnchor);
+  textElement.setAttributeNS(null, "fill", fill);
+  textElement.setAttributeNS(null, "font-size", fontSize);
+  textElement.textContent = textContent;
+  return textElement;
+ }
+
+ function findPolygonCenter(vertices) {
+  let numVertices = vertices.length;
+  
+  let sumX = 0;
+  let sumY = 0;
+  
+  for (let i = 0; i < vertices.length; i++) {
+      sumX += parseInt(vertices[i][0]); // Преобразование строки в число
+      sumY += parseInt(vertices[i][1]); // Преобразование строки в число
+  }
+  
+  let centerX = sumX / numVertices;
+  let centerY = sumY / numVertices;
+  
+  return { x: centerX, y: centerY };
+}
+
+function calculatePolygonWidthAndHeight(coordinates) {
+  // Проверяем, что массив содержит хотя бы одну координату
+  if (coordinates.length < 1) {
+      throw new Error("Недостаточно координат для определения многоугольника.");
+  }
+
+  // Извлекаем координаты x и y
+  const xCoordinates = coordinates.map(point => point[0]);
+  const yCoordinates = coordinates.map(point => point[1]);
+
+  // Вычисляем минимальные и максимальные значения координат x и y
+  const minX = Math.min(...xCoordinates);
+  const maxX = Math.max(...xCoordinates);
+  const minY = Math.min(...yCoordinates);
+  const maxY = Math.max(...yCoordinates);
+
+  // Вычисляем ширину и высоту многоугольника
+  const width = maxX - minX;
+  const height = maxY - minY;
+
+  return { width, height };
+}
+
+function fontSizeProcessor(polygonSize) {
+  const width = polygonSize.width;
+  
+  if (width > 60) {
+    return 20
+  }
+
+  return width / 3.2;
+     
+ }
+
+
+// рендеринг полиногов
+function renderPolygons(polygonsData, floorNum, resetFloor) {
+    console.log('data rendering');
+    const floorNode = document.getElementById('floor');
+    
+    let renderedState = state.getFloorState(floorNum, 'planDOM');
+    if (!renderedState || resetFloor) {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute('id', 'floor')
+        for (const d of polygonsData.coordinates) {
+            console.log(d)
+            let polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+            
+            const polygonCenter = findPolygonCenter(d.coordinates)
+            polygon.setAttribute('points', d.coordinates);
+            polygon.setAttribute('class', '');
+            polygon.setAttribute('id', d.uuid);
+
+            if (d.uuid.charAt(0) == 'r'){
+                polygon.setAttribute('class', 'isAud');
+                polygon.addEventListener('mouseover', function(e) {  
+                    this.style.fill = '#83bfd3';  
+                });
+
+                polygon.addEventListener('mouseout', function() { 
+                    this.style.fill = '#ADD8E6';  
+                });
+            } else if (d.basenode_type == 'Лестница' || d.basenode_type == 'Лифт') {
+                polygon.setAttribute('class', 'isElevatorOrStairs');
+            } else {
+                polygon.setAttribute('class', 'isHall');
+            }
+            g.appendChild(polygon);
+           
+            if (d.uuid.charAt(0) == 'r'){
+              const textElement = createTextElement(polygonCenter.x, polygonCenter.y, "middle", "black", fontSizeProcessor(calculatePolygonWidthAndHeight(d.coordinates)), d.displayed_name);
+              
+              g.appendChild(textElement);
+            } else if (d.basenode_type == 'Лестница') {
+                let pngImage = document.createElementNS("http://www.w3.org/2000/svg","image");
+                const imageSize = 30;
+                pngImage.setAttribute("x", polygonCenter.x - imageSize / 2);
+                if (d.uuid !== 'bp_id_6291b50f-05b6-45f4-a41b-fbb4c9e5c961') {
+                    pngImage.setAttribute("y", polygonCenter.y - imageSize / 2);
+                }
+                else {
+                    pngImage.setAttribute("y", 215);
+                }
+                pngImage.setAttribute("width", imageSize);
+                pngImage.setAttribute("height", imageSize);
+                pngImage.setAttributeNS("http://www.w3.org/1999/xlink", "href", "stair.svg");
+                g.appendChild(pngImage);
+            } else if (d.basenode_type == 'Лифт') {
+                let pngImage = document.createElementNS("http://www.w3.org/2000/svg","image");
+                const imageSize = 30;
+                pngImage.setAttribute("x", polygonCenter.x - imageSize / 2);
+                pngImage.setAttribute("y", polygonCenter.y - imageSize / 2);
+                pngImage.setAttribute("width", imageSize);
+                pngImage.setAttribute("height", imageSize);
+                pngImage.setAttributeNS("http://www.w3.org/1999/xlink", "href", "elevator.svg");
+                g.appendChild(pngImage);
+            }
+        }
+        floorNode.replaceWith(g);
+        delayedRender(floorNum)
+        state.setFloorState(floorNum, 'planDOM', g);  
+    } else {
+        floorNode.replaceWith(renderedState);
+        delayedRender(floorNum)
+        state.setFloorState(floorNum, 'planDOM', renderedState); 
+    }
+
+    //removeOptions(selectFrom);
+    //removeOptions(selectTo);
+
+    if (!isSelectFilled) {
+        for (let item of polygonsData.select) {
+            const option_text = item.displayed_name;
+            const option_id = item.uuid;
+            
+            const optionFrom = document.createElement("option");
+            optionFrom.appendChild(document.createTextNode(option_text));
+            optionFrom.setAttribute("value", option_id);
+            selectFrom.appendChild(optionFrom);
+            
+            const optionTo = document.createElement("option");
+            optionTo.appendChild(document.createTextNode(option_text));
+            optionTo.setAttribute("value", option_id);
+            selectTo.appendChild(optionTo);
+        }
+        isSelectFilled = true
+    }
+}
+
+async function bootstrap() {
+    const floorBtn = document.querySelectorAll('.floor_btn');
+    console.log(floorBtn);
+    floorBtn.forEach((b) => {
+        b.addEventListener('click', handleClickFloorBtn);
+    })
+}
 
 renderMenu();
-goToPage(menu.state.menuElements.feed);
+bootstrap();
+

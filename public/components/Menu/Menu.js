@@ -38,7 +38,7 @@ export class Menu {
     }
 
     get items() {
-        return Object.entries(this.config.menu);
+        return Object.entries(this.config.floors);
     }
 
     // Это классический вид рендера. Безопасно, но неудобно
@@ -76,13 +76,10 @@ export class Menu {
     // Не обязательно Handlebars. Есть множество решений.
     renderTemplate() {
         const template = Handlebars.templates['Menu.hbs'];
-        const items = this.items.map(([key, {href, text}], index) => {
-            let className = 'menu-item';
-            if (index === 0) {
-                className += ' active';
-            }
-            return {key, href, text, className};
+        const items = this.items.map(([key, {floor_uuid, floor_number}]) => {
+            return {floor_uuid, floor_number};
         });
+        console.log(items)
         this.#parent.innerHTML = template({items});
         this.#parent.querySelectorAll('a').forEach((element) => {
             this.state.menuElements[element.dataset.section] = element;

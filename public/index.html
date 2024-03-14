@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset='utf-8'>
-  <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+  <meta charset="UTF-8">
   <title>Самый крутой проект</title>
   <meta name='viewport' content='width=device-width, initial-scale=1'>
   <link rel="stylesheet" href="index.css"></link>
@@ -10,9 +9,34 @@
 <body>
   <div id="root">
   </div>
+      <div class="navigation_panel_wrapper">
+        <div class="navigation_panel_wrapper__selectors">
+            <div>
+                <span>Откуда</span>
+                <select id="select-from">
+                </select>
+            </div>
+            <div>
+                <span>Куда</span>
+                <select id="select-to">
+                </select>
+            </div>            
+        </div>
+      <button id="search_path">Найти</button>
+    </div>
+
+    <div class="scheme_container">
+      <div class="scheme">
+        <svg id="svg">
+            <g id="floor"/>
+            
+        </svg>
+      </div>
+    </div>
+
   <script src="/handlebars/dist/handlebars.runtime.js"></script>
   <script src="./components/Menu/Menu.precompiled.js"></script>
   <script src="modules/ajax.js"></script>
-  <script type="module" src="index.js"></script>
+  <script type="module" async src="index.js"></script>
 </body>
 </html>
